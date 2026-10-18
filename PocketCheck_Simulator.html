@@ -1,0 +1,663 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>PocketCheck Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: campus map (the world) on the left, the phone running PocketCheck on the right; stacks on narrow screens. */
+:root {
+  --ground: #EDF1F6;
+  --surface: #FFFFFF;
+  --ink: #13213A;
+  --muted: #5B6B82;
+  --line: #D6DEE9;
+  --navy: #1B3D6D;
+  --blue: #0064A4;
+  --gold: #FFD200;
+  --gold-ink: #1B3D6D;
+  --grass: #D3E8CB;
+  --grass-deep: #BCDDB1;
+  --road: #FFFFFF;
+  --building: #C9D3E0;
+  --fence: rgba(0, 100, 164, 0.10);
+  --fence-on: rgba(0, 100, 164, 0.20);
+  --ok: #0E9F5E;
+  --ok-bg: #E7F7EE;
+  --bad: #D92D20;
+  --bad-bg: #FDEDEC;
+  --bezel: #0B0F17;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0C1424; --surface: #142038; --ink: #E6ECF6; --muted: #93A3BC; --line: #26344F;
+    --navy: #1B3D6D; --blue: #4FA6E3; --gold: #FFD200; --gold-ink: #13213A;
+    --grass: #183324; --grass-deep: #1F4030; --road: #2B3B58; --building: #2E3F5E;
+    --fence: rgba(79, 166, 227, 0.12); --fence-on: rgba(79, 166, 227, 0.26);
+    --ok: #3CCB8A; --ok-bg: #0F2E22; --bad: #F26B5E; --bad-bg: #3A1715;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0C1424; --surface: #142038; --ink: #E6ECF6; --muted: #93A3BC; --line: #26344F;
+  --navy: #1B3D6D; --blue: #4FA6E3; --gold: #FFD200; --gold-ink: #13213A;
+  --grass: #183324; --grass-deep: #1F4030; --road: #2B3B58; --building: #2E3F5E;
+  --fence: rgba(79, 166, 227, 0.12); --fence-on: rgba(79, 166, 227, 0.26);
+  --ok: #3CCB8A; --ok-bg: #0F2E22; --bad: #F26B5E; --bad-bg: #3A1715;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 32px;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+.intro { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 24px; }
+.intro h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(26px, 4vw, 38px); line-height: 1.05; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+.intro h1 span { color: var(--blue); }
+.intro p { margin: 6px 0 0; color: var(--muted); max-width: 60ch; }
+.how { display: flex; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.how b { color: var(--ink); }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
+@media (max-width: 920px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- World ---------- */
+.world { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.toolbar .label { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 14px; font-weight: 600; font-size: 14px; }
+.chip:hover { border-color: var(--blue); color: var(--blue); }
+.chip.ghost { background: transparent; }
+
+.map-box { position: relative; border-radius: 18px; overflow: hidden; border: 1px solid var(--line); background: var(--grass); touch-action: none; }
+#map { display: block; width: 100%; height: auto; cursor: grab; user-select: none; }
+#map.dragging { cursor: grabbing; }
+.m-bg { fill: var(--grass); }
+.m-park { fill: var(--grass-deep); }
+.m-road { stroke: var(--road); fill: none; stroke-linecap: round; }
+.m-bldg { fill: var(--building); }
+.m-text { fill: var(--muted); font-family: var(--font-body); font-size: 15px; font-weight: 600; letter-spacing: 0.06em; }
+.m-scale { stroke: var(--ink); stroke-width: 3; }
+.m-scale-t { fill: var(--ink); font-family: var(--font-mono); font-size: 14px; }
+.fence { fill: var(--fence); stroke: var(--blue); stroke-width: 2.5; stroke-dasharray: 8 7; transition: fill .25s; }
+.fence.in { fill: var(--fence-on); stroke-dasharray: none; }
+.pin { fill: var(--blue); }
+.pin-label { fill: var(--ink); font-family: var(--font-display); font-weight: 700; font-size: 20px; paint-order: stroke; stroke: var(--grass); stroke-width: 5px; stroke-linejoin: round; }
+.you-dot { fill: var(--gold); stroke: var(--navy); stroke-width: 4; }
+.you-ring { fill: none; stroke: var(--gold); stroke-width: 3; opacity: .7; transform-origin: center; transform-box: fill-box; animation: ping 1.8s ease-out infinite; }
+.you-label { fill: var(--navy); font-family: var(--font-body); font-weight: 800; font-size: 13px; }
+@keyframes ping { from { transform: scale(.6); opacity: .8; } to { transform: scale(2.2); opacity: 0; } }
+.map-hint { position: absolute; right: 12px; top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; font-size: 13px; color: var(--muted); pointer-events: none; }
+
+.panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 640px) { .panels { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+.panel h2 { margin: 0 0 10px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.fence-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.fence-row:first-of-type { border-top: 0; }
+.fence-row .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mono { font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.pill { font-size: 12px; font-weight: 700; border-radius: 999px; padding: 2px 9px; }
+.pill.in { background: var(--ok-bg); color: var(--ok); }
+.pill.out { background: var(--ground); color: var(--muted); }
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 168px; overflow-y: auto; }
+.log li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; font-size: 14px; }
+.log li.exit { color: var(--bad); font-weight: 600; }
+.log .empty { color: var(--muted); }
+
+/* ---------- Phone ---------- */
+.device { display: flex; justify-content: center; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+@media (max-width: 920px) { .device { position: static; } }
+.phone { width: 100%; max-width: 352px; aspect-ratio: 352 / 720; max-height: 760px; background: var(--bezel); border-radius: 46px; padding: 12px; box-shadow: 0 30px 60px -30px rgba(10, 20, 40, .55); }
+.phone.buzz { animation: buzz .09s linear 8; }
+@keyframes buzz { 0%,100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-4px) rotate(-.6deg); } 75% { transform: translateX(4px) rotate(.6deg); } }
+@media (prefers-reduced-motion: reduce) { .phone.buzz { animation: none; outline: 4px solid var(--gold); } .you-ring { animation: none; } }
+.screen { position: relative; height: 100%; border-radius: 36px; overflow: hidden; background: var(--ground); display: flex; flex-direction: column; }
+
+.sbar { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px 4px; background: var(--navy); color: #fff; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sbar .island { width: 92px; height: 24px; background: var(--bezel); border-radius: 14px; }
+.batt { display: inline-block; width: 22px; height: 11px; border: 1.5px solid #fff; border-radius: 3px; position: relative; vertical-align: middle; margin-left: 6px; }
+.batt::after { content: ""; position: absolute; inset: 1.5px; right: 5px; background: #fff; border-radius: 1px; }
+.app-head { background: var(--navy); color: #fff; padding: 6px 18px 14px; }
+.app-head b { display: block; font-family: var(--font-display); font-size: 22px; font-weight: 800; }
+.app-head span { color: var(--gold); font-size: 13px; font-weight: 600; }
+
+.pending-strip { display: block; width: 100%; text-align: left; border: 0; background: var(--gold); color: var(--gold-ink); padding: 10px 18px; font-weight: 700; font-size: 14px; }
+.app-body { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 9px; }
+.sec { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted); margin-top: 8px; text-transform: uppercase; }
+.row { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 11px 12px; }
+.row .grow { flex: 1; min-width: 0; }
+.row .sub { font-size: 12.5px; color: var(--muted); }
+.star { border: 0; background: none; font-size: 20px; line-height: 1; padding: 0; color: var(--line); }
+.star.on { color: var(--gold); }
+.lnk { border: 0; background: none; font-size: 13px; font-weight: 600; color: var(--muted); padding: 2px; }
+.lnk.danger { color: var(--bad); }
+.btn { border: 0; border-radius: 12px; padding: 12px 14px; font-weight: 700; font-size: 15px; background: var(--blue); color: #fff; }
+.btn.gold { background: var(--gold); color: var(--gold-ink); }
+.btn:disabled { opacity: .5; cursor: default; }
+.sbtn { border: 0; border-radius: 8px; padding: 6px 10px; font-size: 12.5px; font-weight: 700; background: var(--ground); color: var(--blue); }
+.sbtn.danger { color: var(--bad); }
+.add { display: flex; gap: 8px; }
+.add input, .field { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 15px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 13px; display: flex; flex-direction: column; gap: 9px; }
+.card.good { background: var(--ok-bg); border-color: var(--ok); }
+.radii { display: flex; gap: 6px; }
+.radii button { flex: 1; border: 0; border-radius: 8px; padding: 8px 0; font-weight: 700; font-size: 13px; background: var(--ground); color: var(--blue); }
+.radii button.on { background: var(--blue); color: #fff; }
+.score { font-family: var(--font-display); font-size: 30px; font-weight: 800; color: var(--blue); line-height: 1; }
+.tag { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 1px 5px; margin-left: 6px; }
+.empty-note { text-align: center; color: var(--muted); margin-top: 16px; }
+
+.tabbar { display: flex; background: var(--surface); border-top: 1px solid var(--line); padding: 8px 0 18px; }
+.tabbar button { flex: 1; border: 0; background: none; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.tabbar .ic { font-size: 20px; opacity: .45; }
+.tabbar .on { color: var(--blue); }
+.tabbar .on .ic { opacity: 1; }
+
+.notif { position: absolute; left: 8px; right: 8px; top: 44px; z-index: 30; text-align: left; border: 0; border-radius: 20px; padding: 12px 14px; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(12px); box-shadow: 0 12px 30px -10px rgba(0,0,0,.45); display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; animation: drop .35s cubic-bezier(.2,.9,.3,1.2); }
+@keyframes drop { from { transform: translateY(-120%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .notif { animation: none; } }
+.notif .appic { width: 34px; height: 34px; border-radius: 9px; background: var(--navy); display: grid; place-items: center; font-size: 18px; }
+.notif .meta { font-size: 11.5px; color: var(--muted); font-weight: 600; letter-spacing: .03em; display: flex; justify-content: space-between; }
+.notif .t { font-weight: 800; font-size: 14.5px; }
+.notif .b { font-size: 13.5px; }
+
+.sheet { position: absolute; inset: 0; z-index: 20; background: var(--ground); display: flex; flex-direction: column; animation: up .3s ease-out; }
+@keyframes up { from { transform: translateY(100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+.sheet-head { background: var(--navy); color: #fff; padding: 44px 18px 16px; }
+.sheet-head .eyebrow { color: var(--gold); font-weight: 700; font-size: 12px; letter-spacing: .08em; }
+.sheet-head h3 { margin: 2px 0; font-family: var(--font-display); font-size: 25px; font-weight: 800; line-height: 1.1; }
+.sheet-head p { margin: 0; color: #C7D2E3; font-size: 13.5px; }
+.check { width: 24px; height: 24px; border-radius: 7px; border: 2px solid var(--line); background: var(--surface); display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 14px; flex: none; }
+.row.checked { border-color: var(--ok); background: var(--ok-bg); }
+.row.checked .check { background: var(--ok); border-color: var(--ok); }
+button.row { width: 100%; text-align: left; font-size: 15px; }
+.sheet-foot { background: var(--surface); border-top: 1px solid var(--line); padding: 12px 14px 20px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+
+.dialog-back { position: absolute; inset: 0; z-index: 40; background: rgba(5, 10, 20, .5); display: grid; place-items: center; padding: 22px; }
+.dialog { background: var(--surface); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.dialog h4 { margin: 0; font-family: var(--font-display); font-size: 21px; color: var(--bad); }
+.dialog p { margin: 0; }
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <div>
+      <h1>PocketCheck <span>Simulator</span></h1>
+      <p>Move yourself around campus. Leave a saved place and the phone buzzes, then asks what you have with you.</p>
+    </div>
+    <div class="how"><b>Try it:</b> tap “Walk to Langson Library” and watch the phone.</div>
+  </div>
+
+  <div class="stage">
+    <section class="world" aria-label="Campus map">
+      <div class="toolbar" id="walks"></div>
+      <div class="map-box">
+        <svg id="map" viewBox="0 0 1000 680" role="img" aria-label="Campus map with saved places and your position. Drag to move."></svg>
+        <div class="map-hint">Drag the gold dot, or tap anywhere to jump there</div>
+      </div>
+      <div class="panels">
+        <div class="panel">
+          <h2>Geofences</h2>
+          <div id="fences"></div>
+        </div>
+        <div class="panel">
+          <h2>Event log</h2>
+          <ul class="log" id="log"><li class="empty">Nothing yet. Leave a place to trigger an alert.</li></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="device" aria-label="Phone running PocketCheck">
+      <div class="phone" id="phone"><div class="screen" id="screen"></div></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const uid = () => Math.random().toString(36).slice(2, 9);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const store = {
+    get(k, f) { try { const v = localStorage.getItem('pcsim.' + k); return v ? JSON.parse(v) : f; } catch { return f; } },
+    set(k, v) { try { localStorage.setItem('pcsim.' + k, JSON.stringify(v)); } catch {} },
+  };
+
+  // 1 map unit = 1 metre.
+  const W = 1000, H = 680;
+  const DEFAULT_ITEMS = [
+    { id: 'i1', name: 'Phone', essential: true },
+    { id: 'i2', name: 'Wallet', essential: true },
+    { id: 'i3', name: 'Keys', essential: true },
+    { id: 'i4', name: 'Student ID', essential: false },
+    { id: 'i5', name: 'Laptop', essential: false },
+    { id: 'i6', name: 'Charger', essential: false },
+    { id: 'i7', name: 'AirPods', essential: false },
+    { id: 'i8', name: 'Water bottle', essential: false },
+  ];
+  const DEFAULT_PLACES = [
+    { id: 'home', name: 'Home', x: 150, y: 540, r: 50 },
+    { id: 'langson', name: 'Langson Library', x: 470, y: 250, r: 75 },
+    { id: 'arc', name: 'ARC', x: 840, y: 500, r: 75 },
+  ];
+  const H_AGO = (h) => Date.now() - h * 3600e3;
+  const EXAMPLE_HISTORY = [
+    { id: 'ex1', placeName: 'ARC', at: H_AGO(20), had: ['Phone', 'Wallet', 'Keys', 'Student ID'], missing: ['Water bottle'], example: true },
+    { id: 'ex2', placeName: 'Langson Library', at: H_AGO(27), had: ['Phone', 'Wallet', 'Keys', 'Laptop', 'Charger'], missing: [], example: true },
+  ];
+
+  const S = {
+    items: store.get('items', DEFAULT_ITEMS),
+    places: store.get('places.v2', DEFAULT_PLACES),
+    history: store.get('history', EXAMPLE_HISTORY),
+    you: { x: 150, y: 560 },
+    inside: new Set(),
+    pending: null,     // { placeName, placeId, at }
+    showCheck: false,
+    have: new Set(),
+    tab: 'stuff',
+    radius: 50,
+    notif: null,
+    confirm: null,     // list of missing essentials
+    log: [],
+  };
+  const save = () => { store.set('items', S.items); store.set('places.v2', S.places); store.set('history', S.history); };
+  const sorted = () => [...S.items.filter((i) => i.essential), ...S.items.filter((i) => !i.essential)];
+  const dist = (p) => Math.hypot(p.x - S.you.x, p.y - S.you.y);
+  const timeStr = (t = Date.now()) => new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  // ---------- Map ----------
+  const svg = $('#map');
+  const NS = 'http://www.w3.org/2000/svg';
+  svg.innerHTML = `
+    <rect class="m-bg" x="0" y="0" width="${W}" height="${H}"/>
+    <circle class="m-park" cx="470" cy="300" r="150"/>
+    <circle class="m-road" cx="470" cy="300" r="190" stroke-width="16"/>
+    <path class="m-road" stroke-width="14" d="M0 600 C 150 600, 220 470, 320 420 M 650 320 C 760 340, 820 420, 1000 470 M 470 490 L 470 680 M 470 110 L 470 0 M 300 230 L 0 160"/>
+    <g>
+      <rect class="m-bldg" x="430" y="200" width="80" height="44" rx="4"/>
+      <rect class="m-bldg" x="560" y="140" width="56" height="40" rx="4"/>
+      <rect class="m-bldg" x="320" y="370" width="50" height="62" rx="4"/>
+      <rect class="m-bldg" x="580" y="430" width="70" height="40" rx="4"/>
+      <rect class="m-bldg" x="110" y="505" width="70" height="46" rx="4"/>
+      <rect class="m-bldg" x="800" y="470" width="86" height="58" rx="6"/>
+      <rect class="m-bldg" x="690" y="120" width="60" height="44" rx="4"/>
+    </g>
+    <text class="m-text" x="470" y="310" text-anchor="middle">ALDRICH PARK</text>
+    <text class="m-text" x="470" y="125" text-anchor="middle" font-size="13">RING MALL</text>
+    <g transform="translate(${W - 150} ${H - 34})">
+      <line class="m-scale" x1="0" y1="0" x2="100" y2="0"/>
+      <line class="m-scale" x1="0" y1="-7" x2="0" y2="7"/>
+      <line class="m-scale" x1="100" y1="-7" x2="100" y2="7"/>
+      <text class="m-scale-t" x="50" y="-12" text-anchor="middle">100 m</text>
+    </g>
+    <g id="g-places"></g>
+    <g id="g-you">
+      <circle class="you-ring" r="16"/>
+      <circle class="you-dot" r="12"/>
+      <text class="you-label" y="-20" text-anchor="middle">YOU</text>
+    </g>`;
+  const gPlaces = $('#g-places'), gYou = $('#g-you');
+
+  function drawPlaces() {
+    gPlaces.innerHTML = S.places.map((p) => `
+      <g data-place="${p.id}">
+        <circle class="fence ${S.inside.has(p.id) ? 'in' : ''}" cx="${p.x}" cy="${p.y}" r="${p.r}"/>
+        <circle class="pin" cx="${p.x}" cy="${p.y}" r="6"/>
+        <text class="pin-label" x="${p.x}" y="${p.y - p.r - 10}" text-anchor="middle">${esc(p.name)}</text>
+      </g>`).join('');
+  }
+  function drawYou() {
+    gYou.setAttribute('transform', `translate(${S.you.x} ${S.you.y})`);
+    for (const p of S.places) {
+      const c = gPlaces.querySelector(`[data-place="${p.id}"] .fence`);
+      if (c) c.classList.toggle('in', S.inside.has(p.id));
+    }
+    renderFences();
+    // Keep the Places tab distances fresh while walking, without re-rendering every frame or while typing.
+    const now = performance.now();
+    const typing = document.activeElement && document.activeElement.id === 'place-input';
+    if (S.tab === 'places' && !S.showCheck && !typing && now - lastPlacesRender > 400) {
+      lastPlacesRender = now;
+      renderPhone();
+    }
+  }
+  let lastPlacesRender = 0;
+
+  function renderFences() {
+    $('#fences').innerHTML = S.places.length
+      ? S.places.map((p) => {
+          const inn = S.inside.has(p.id);
+          return `<div class="fence-row"><span class="nm">${esc(p.name)}</span>
+            <span class="mono">${Math.round(dist(p))} m / ${p.r} m</span>
+            <span class="pill ${inn ? 'in' : 'out'}">${inn ? 'Inside' : 'Outside'}</span></div>`;
+        }).join('')
+      : '<p class="empty-note" style="margin:0">No places saved.</p>';
+  }
+
+  function renderLog() {
+    $('#log').innerHTML = S.log.length
+      ? S.log.map((l) => `<li class="${l.kind}"><span class="mono">${l.time}</span><span>${esc(l.text)}</span></li>`).join('')
+      : '<li class="empty">Nothing yet. Leave a place to trigger an alert.</li>';
+  }
+  function log(text, kind = '') {
+    S.log.unshift({ text, kind, time: timeStr() });
+    S.log = S.log.slice(0, 40);
+    renderLog();
+  }
+
+  // Same rule as the real app: alert only on EXIT from a saved place.
+  function checkFences(quiet = false) {
+    for (const p of S.places) {
+      const nowIn = dist(p) <= p.r;
+      const wasIn = S.inside.has(p.id);
+      if (nowIn && !wasIn) { S.inside.add(p.id); if (!quiet) log(`Entered ${p.name}`); }
+      if (!nowIn && wasIn) { S.inside.delete(p.id); if (!quiet) onExit(p, false); }
+    }
+    drawYou();
+  }
+
+  function moveTo(x, y) {
+    S.you.x = Math.max(10, Math.min(W - 10, x));
+    S.you.y = Math.max(10, Math.min(H - 10, y));
+    checkFences();
+  }
+
+  // Dragging / tapping on the map
+  let dragging = false;
+  const toMap = (e) => {
+    const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  };
+  svg.addEventListener('pointerdown', (e) => {
+    unlockAudio(); stopWalk(); dragging = true; svg.classList.add('dragging');
+    svg.setPointerCapture(e.pointerId);
+    const p = toMap(e); moveTo(p.x, p.y);
+  });
+  svg.addEventListener('pointermove', (e) => { if (dragging) { const p = toMap(e); moveTo(p.x, p.y); } });
+  const endDrag = () => { dragging = false; svg.classList.remove('dragging'); };
+  svg.addEventListener('pointerup', endDrag);
+  svg.addEventListener('pointercancel', endDrag);
+
+  // "Walk to" animation (fast-forwarded: ~1 second per 250 m)
+  let walkRaf = 0;
+  function stopWalk() { cancelAnimationFrame(walkRaf); walkRaf = 0; }
+  function walkTo(tx, ty) {
+    stopWalk(); unlockAudio();
+    let last = performance.now();
+    const step = (now) => {
+      const dt = Math.min(0.3, (now - last) / 1000); last = now;
+      const dx = tx - S.you.x, dy = ty - S.you.y, d = Math.hypot(dx, dy), move = 250 * dt;
+      if (d <= move) { moveTo(tx, ty); walkRaf = 0; return; }
+      moveTo(S.you.x + (dx / d) * move, S.you.y + (dy / d) * move);
+      walkRaf = requestAnimationFrame(step);
+    };
+    walkRaf = requestAnimationFrame(step);
+  }
+  function renderWalks() {
+    $('#walks').innerHTML = '<span class="label">Walk to</span>' +
+      S.places.map((p) => `<button class="chip" data-walk="${p.id}">${esc(p.name)}</button>`).join('') +
+      '<button class="chip ghost" data-walk="__off">Off campus</button>';
+  }
+  $('#walks').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-walk]'); if (!b) return;
+    if (b.dataset.walk === '__off') return walkTo(960, 70);
+    const p = S.places.find((x) => x.id === b.dataset.walk);
+    if (p) walkTo(p.x + 10, p.y + 22);
+  });
+
+  // ---------- Buzz ----------
+  let audio = null;
+  function unlockAudio() {
+    if (audio) return;
+    try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch { audio = null; }
+  }
+  function buzz() {
+    const phone = $('#phone');
+    phone.classList.remove('buzz'); void phone.offsetWidth; phone.classList.add('buzz');
+    try { navigator.vibrate && navigator.vibrate([0, 400, 200, 400, 200, 600]); } catch {}
+    if (!audio) return;
+    try {
+      const t0 = audio.currentTime;
+      [0, 0.32, 0.64].forEach((off) => {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.type = 'square'; o.frequency.value = 140;
+        g.gain.setValueAtTime(0.0001, t0 + off);
+        g.gain.exponentialRampToValueAtTime(0.06, t0 + off + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + off + 0.22);
+        o.connect(g).connect(audio.destination); o.start(t0 + off); o.stop(t0 + off + 0.25);
+      });
+    } catch {}
+  }
+
+  let notifTimer = 0;
+  function onExit(place, simulated) {
+    log(`${simulated ? 'Simulated leaving' : 'Left'} ${place.name}: buzz sent`, 'exit');
+    S.pending = { placeName: place.name, placeId: place.id, at: Date.now() };
+    S.have = new Set();
+    S.showCheck = false;
+    S.confirm = null;
+    const ess = sorted().filter((i) => i.essential).map((i) => i.name);
+    const list = ess.length > 1 ? `${ess.slice(0, -1).join(', ')} and ${ess[ess.length - 1]}` : ess[0];
+    S.notif = {
+      title: `Leaving ${place.name}? 🎒`,
+      body: list ? `Got your ${list}? Tap to check off your stuff.` : 'Tap to check off your belongings before you go.',
+    };
+    clearTimeout(notifTimer);
+    notifTimer = setTimeout(() => { S.notif = null; renderPhone(); }, 7000);
+    buzz();
+    renderPhone();
+  }
+
+  // ---------- Phone ----------
+  const screen = $('#screen');
+
+  function stuffTab() {
+    const rows = sorted().map((i) => `
+      <div class="row">
+        <button class="star ${i.essential ? 'on' : ''}" data-act="star" data-id="${i.id}" aria-label="${i.essential ? 'Unmark' : 'Mark'} ${esc(i.name)} as essential">★</button>
+        <span class="grow">${esc(i.name)}</span>
+        <button class="lnk danger" data-act="remove-item" data-id="${i.id}">Remove</button>
+      </div>`).join('');
+    return `
+      <button class="btn gold" data-act="quick-check">Check my stuff now</button>
+      <div class="sec">My belongings · ★ = essential</div>
+      <div class="add"><input id="item-input" placeholder="Add an item (e.g. Umbrella)" aria-label="New item"><button class="btn" data-act="add-item">Add</button></div>
+      ${rows || '<p class="empty-note">Add the things you carry every day.</p>'}`;
+  }
+
+  function placesTab() {
+    const n = S.places.length;
+    const rows = S.places.map((p) => `
+      <div class="row" style="align-items:flex-start">
+        <div class="grow">
+          <div>${esc(p.name)}</div>
+          <div class="sub">Alerts beyond ${p.r} m · ${S.inside.has(p.id) ? 'you are here' : Math.round(dist(p)) + ' m away'}</div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="sbtn" data-act="simulate" data-id="${p.id}">Simulate leaving</button>
+            <button class="sbtn danger" data-act="delete-place" data-id="${p.id}">Delete</button>
+          </div>
+        </div>
+      </div>`).join('');
+    return `
+      <div class="card ${n ? 'good' : ''}">
+        <b>${n ? `✅ Watching ${n} ${n === 1 ? 'place' : 'places'}` : 'Save a place to start'}</b>
+        <span class="sub" style="font-size:13px;color:var(--muted)">${n ? 'Your phone will buzz when you leave any of them.' : 'Once you save a place, you get a buzz every time you leave it.'}</span>
+      </div>
+      <div class="sec">Save where you are now</div>
+      <div class="card">
+        <input class="field" id="place-input" placeholder='Place name (e.g. "Gym")' aria-label="Place name">
+        <span style="font-size:13px;color:var(--muted)">Alert me when I'm this far away:</span>
+        <div class="radii">${[50, 75, 100].map((r) => `<button data-act="radius" data-r="${r}" class="${S.radius === r ? 'on' : ''}">${r} m</button>`).join('')}</div>
+        <button class="btn" data-act="save-place">📍 Save current location</button>
+      </div>
+      ${n ? '<div class="sec">My places</div>' : ''}
+      ${rows}`;
+  }
+
+  function historyTab() {
+    if (!S.history.length) return '<p class="empty-note">Your belongings checks will show up here.</p>';
+    const perfect = S.history.filter((h) => !h.missing.length).length;
+    const fmt = (t) => new Date(t).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+    return `
+      <div class="card" style="flex-direction:row;align-items:center">
+        <div class="grow"><div class="score">${perfect}/${S.history.length}</div><span style="font-size:13px;color:var(--muted)">checks where you had everything</span></div>
+        <button class="lnk" data-act="clear-history">Clear</button>
+      </div>
+      ${S.history.map((h) => `
+        <div class="row" style="align-items:flex-start">
+          <span style="font-size:18px">${h.missing.length ? '⚠️' : '✅'}</span>
+          <div class="grow">
+            <div>Left ${esc(h.placeName)}${h.example ? '<span class="tag">Example</span>' : ''}</div>
+            <div class="sub">${fmt(h.at)}</div>
+            <div class="sub" style="color:${h.missing.length ? 'var(--bad)' : 'var(--ok)'}">${h.missing.length ? "Didn't have: " + esc(h.missing.join(', ')) : `Had all ${h.had.length} items`}</div>
+          </div>
+        </div>`).join('')}`;
+  }
+
+  function checkSheet() {
+    const items = sorted();
+    const all = items.length > 0 && items.every((i) => S.have.has(i.id));
+    return `
+      <div class="sheet" role="dialog" aria-label="Belongings check">
+        <div class="sheet-head">
+          <div class="eyebrow">${S.pending.placeId ? 'YOU JUST LEFT' : 'BELONGINGS CHECK'}</div>
+          <h3>${esc(S.pending.placeName)}</h3>
+          <p>Tap everything you have with you. ${S.have.size}/${items.length} checked</p>
+        </div>
+        <div class="app-body">
+          <button class="lnk" style="align-self:flex-end;color:var(--blue)" data-act="toggle-all">${all ? 'Uncheck all' : 'I have everything'}</button>
+          ${items.map((i) => {
+            const on = S.have.has(i.id);
+            return `<button class="row ${on ? 'checked' : ''}" data-act="toggle" data-id="${i.id}" aria-pressed="${on}">
+              <span class="check">${on ? '✓' : ''}</span><span class="grow">${esc(i.name)}</span>${i.essential ? '<span class="star on" aria-label="essential">★</span>' : ''}
+            </button>`;
+          }).join('')}
+          <div class="sec">Carrying something new?</div>
+          <div class="add"><input id="check-input" placeholder="Add it to your list" aria-label="New item"><button class="btn" data-act="check-add">Add</button></div>
+        </div>
+        <div class="sheet-foot">
+          <button class="btn" data-act="done">Done, I'm good to go</button>
+          <button class="lnk" data-act="dismiss">Not leaving, dismiss</button>
+        </div>
+      </div>`;
+  }
+
+  function renderPhone() {
+    const keep = document.activeElement && screen.contains(document.activeElement) ? document.activeElement.id : null;
+    const keepVal = keep ? document.activeElement.value : null;
+    const tabs = [['stuff', '🎒', 'My Stuff'], ['places', '📍', 'Places'], ['history', '🕘', 'History']];
+    screen.innerHTML = `
+      <div class="sbar"><span>${timeStr()}</span><span class="island"></span><span>5G<span class="batt"></span></span></div>
+      <div class="app-head"><b>PocketCheck</b><span>Never leave your stuff behind.</span></div>
+      ${S.pending && !S.showCheck ? `<button class="pending-strip" data-act="open-check">You left ${esc(S.pending.placeName)}. Tap to check your stuff →</button>` : ''}
+      <div class="app-body">${S.tab === 'stuff' ? stuffTab() : S.tab === 'places' ? placesTab() : historyTab()}</div>
+      <nav class="tabbar">${tabs.map(([k, ic, l]) => `<button class="${S.tab === k ? 'on' : ''}" data-act="tab" data-tab="${k}"><span class="ic">${ic}</span>${l}</button>`).join('')}</nav>
+      ${S.pending && S.showCheck ? checkSheet() : ''}
+      ${S.notif ? `<button class="notif" data-act="open-check"><span class="appic">🎒</span><span><span class="meta"><span>POCKETCHECK</span><span>now</span></span><div class="t">${esc(S.notif.title)}</div><div class="b">${esc(S.notif.body)}</div></span></button>` : ''}
+      ${S.confirm ? `<div class="dialog-back"><div class="dialog" role="alertdialog" aria-label="Missing essentials">
+          <h4>Hold up! 🛑</h4><p>You haven't checked off: <b>${esc(S.confirm.join(', '))}</b>.</p>
+          <button class="btn" data-act="go-back">Go back for it</button>
+          <button class="lnk danger" data-act="leave-anyway">Leave anyway</button></div></div>` : ''}`;
+    if (keep) { const el = document.getElementById(keep); if (el) { el.value = keepVal; el.focus(); } }
+  }
+
+  function completeCheck() {
+    const items = sorted();
+    S.history.unshift({
+      id: uid(), placeName: S.pending.placeName, at: Date.now(),
+      had: items.filter((i) => S.have.has(i.id)).map((i) => i.name),
+      missing: items.filter((i) => !S.have.has(i.id)).map((i) => i.name),
+    });
+    log(`Check saved for ${S.pending.placeName}`);
+    S.pending = null; S.showCheck = false; S.confirm = null; S.tab = 'history';
+    save();
+  }
+
+  function addItemFrom(inputId, markHave) {
+    const el = document.getElementById(inputId);
+    const name = el && el.value.trim();
+    if (!name) return;
+    const item = { id: uid(), name, essential: false };
+    S.items.push(item);
+    if (markHave) S.have.add(item.id);
+    el.value = '';
+    save();
+  }
+
+  const actions = {
+    tab: (b) => { S.tab = b.dataset.tab; },
+    star: (b) => { const i = S.items.find((x) => x.id === b.dataset.id); if (i) i.essential = !i.essential; save(); },
+    'remove-item': (b) => { S.items = S.items.filter((x) => x.id !== b.dataset.id); S.have.delete(b.dataset.id); save(); },
+    'add-item': () => addItemFrom('item-input', false),
+    'quick-check': () => { S.pending = { placeName: 'Quick check', placeId: null, at: Date.now() }; S.have = new Set(); S.showCheck = true; },
+    'open-check': () => { S.notif = null; clearTimeout(notifTimer); if (S.pending) S.showCheck = true; },
+    toggle: (b) => { const id = b.dataset.id; S.have.has(id) ? S.have.delete(id) : S.have.add(id); },
+    'toggle-all': () => { const items = sorted(); S.have = items.every((i) => S.have.has(i.id)) ? new Set() : new Set(items.map((i) => i.id)); },
+    'check-add': () => addItemFrom('check-input', true),
+    done: () => {
+      const missing = sorted().filter((i) => i.essential && !S.have.has(i.id)).map((i) => i.name);
+      if (missing.length) { S.confirm = missing; buzz(); } else completeCheck();
+    },
+    'go-back': () => { S.confirm = null; },
+    'leave-anyway': () => completeCheck(),
+    dismiss: () => { S.pending = null; S.showCheck = false; },
+    radius: (b) => { S.radius = Number(b.dataset.r); },
+    'save-place': () => {
+      const el = document.getElementById('place-input');
+      const name = (el && el.value.trim()) || `Spot ${S.places.length + 1}`;
+      const p = { id: uid(), name, x: Math.round(S.you.x), y: Math.round(S.you.y), r: S.radius };
+      S.places.push(p);
+      S.inside.add(p.id); // you're standing in it
+      log(`Saved ${name} (${p.r} m)`);
+      save(); drawPlaces(); drawYou(); renderWalks();
+    },
+    'delete-place': (b) => {
+      S.places = S.places.filter((p) => p.id !== b.dataset.id); S.inside.delete(b.dataset.id);
+      save(); drawPlaces(); drawYou(); renderWalks();
+    },
+    simulate: (b) => { const p = S.places.find((x) => x.id === b.dataset.id); if (p) { unlockAudio(); onExit(p, true); } },
+    'clear-history': () => { S.history = []; save(); },
+  };
+
+  screen.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b || !actions[b.dataset.act]) return;
+    unlockAudio();
+    actions[b.dataset.act](b);
+    renderPhone();
+  });
+  screen.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const map = { 'item-input': 'add-item', 'check-input': 'check-add', 'place-input': 'save-place' };
+    const act = map[e.target.id];
+    if (act) { actions[act](); renderPhone(); const el = document.getElementById(e.target.id); if (el) el.focus(); }
+  });
+
+  // Boot: start at Home, already inside it (no alert on launch).
+  drawPlaces();
+  renderWalks();
+  checkFences(true);
+  renderLog();
+  renderPhone();
+  setInterval(() => { const t = screen.querySelector('.sbar span'); if (t) t.textContent = timeStr(); }, 20000);
+})();
+</script>
+
+</body></html>
